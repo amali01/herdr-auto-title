@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/kryptamine/herdr-auto-title/compare/v0.4.0...v0.4.1) (2026-09-06)
+
+
+### Refactoring
+
+* **app:** give a pane's reads a module of their own ([2a9516a](https://github.com/kryptamine/herdr-auto-title/commit/2a9516aa2eb7c29c785c0564a60cdf96dbea5660))
+* **app:** keep only the interval the loop reads ([73d59da](https://github.com/kryptamine/herdr-auto-title/commit/73d59da533bd1ef30b696326be5d7a86fe06274a))
+
 ## [0.4.0](https://github.com/kryptamine/herdr-auto-title/compare/v0.3.3...v0.4.0) (2026-09-05)
 
 
