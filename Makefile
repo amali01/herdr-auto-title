@@ -39,7 +39,7 @@ test-v: ## Tests, verbose
 
 .PHONY: build
 build: ## Build the binary
-	@go build -o $(BINARY) $(PKG)
+	@go build -trimpath -o $(BINARY) $(PKG)
 
 .PHONY: run
 run: build ## Run in the current Herdr session with DEBUG logging

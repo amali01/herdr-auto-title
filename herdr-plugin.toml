@@ -12,11 +12,11 @@ platforms = ["linux", "macos", "windows"]
 # own so the binary carries the extension Windows expects of one.
 [[build]]
 platforms = ["linux", "macos"]
-command = ["go", "build", "-o", "herdr-auto-title", "./cmd/herdr-auto-title"]
+command = ["go", "build", "-trimpath", "-o", "herdr-auto-title", "./cmd/herdr-auto-title"]
 
 [[build]]
 platforms = ["windows"]
-command = ["go", "build", "-o", "herdr-auto-title.exe", "./cmd/herdr-auto-title"]
+command = ["go", "build", "-trimpath", "-o", "herdr-auto-title.exe", "./cmd/herdr-auto-title"]
 
 # A one-shot launch, not a supervised daemon: the process stays alive itself.
 [[startup]]
