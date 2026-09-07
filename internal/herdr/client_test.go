@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // incoming is one request as the test server saw it.
@@ -36,6 +38,9 @@ type testServer struct {
 
 	// reply returns the line to send back.
 	reply func(req incoming) string
+	// hold, when set, is waited on before a request is answered, so a test can
+	// cancel a call the server is sitting on.
+	hold chan struct{}
 }
 
 func newTestServer(t *testing.T, reply func(incoming) string) *testServer {
@@ -82,7 +87,12 @@ func (s *testServer) serve(conn io.ReadWriteCloser) {
 	s.mu.Lock()
 	s.requests = append(s.requests, req)
 	reply := s.reply
+	hold := s.hold
 	s.mu.Unlock()
+
+	if hold != nil {
+		<-hold
+	}
 
 	if response := reply(req); response != "" {
 		_, _ = io.WriteString(conn, response+"\n")
@@ -93,6 +103,18 @@ func (s *testServer) serve(conn io.ReadWriteCloser) {
 
 func (s *testServer) client() *SocketClient {
 	return newWithPath(s.path)
+}
+
+// holdReplies keeps every request unanswered until the returned function is
+// called.
+func (s *testServer) holdReplies() func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hold := make(chan struct{})
+	s.hold = hold
+
+	return sync.OnceFunc(func() { close(hold) })
 }
 
 func (s *testServer) connectionCount() int {
@@ -292,5 +314,80 @@ func TestErrorCode(t *testing.T) {
 
 	if got := ErrorCode(errors.New("plain")); got != "" {
 		t.Errorf("ErrorCode of a plain error = %q, want empty", got)
+	}
+}
+
+func TestCallReportsASocketThatIsNotThere(t *testing.T) {
+	// Herdr's socket can be a moment behind the process it just launched, and
+	// the loop treats that as one failed poll; what it needs is an error that
+	// names the socket rather than a panic or a hang.
+	srv := newTestServer(t, respondOK)
+	srv.ln.close() // a closed unix listener takes its socket file with it
+
+	err := srv.client().Call(context.Background(), MethodSessionSnapshot, nil, nil)
+	if err == nil {
+		t.Fatal("Call succeeded against a socket that is gone")
+	}
+
+	if !strings.Contains(err.Error(), "connect to herdr socket") {
+		t.Errorf("error %q does not say the connection failed", err)
+	}
+}
+
+func TestCallReportsTheDeadlineRatherThanTheSocket(t *testing.T) {
+	// A poll past its deadline is cut off by closing the connection, and the
+	// caller must see the deadline, not the read error that closing produced.
+	srv := newTestServer(t, respondOK)
+
+	release := srv.holdReplies()
+	defer release()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	err := srv.client().Call(ctx, MethodSessionSnapshot, nil, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error = %v, want the deadline", err)
+	}
+}
+
+func TestCallReportsAConnectionClosedUnanswered(t *testing.T) {
+	// Herdr dropping the connection without a frame is an error, not an empty
+	// result read as success.
+	srv := newTestServer(t, func(incoming) string { return "" })
+
+	err := srv.client().Call(context.Background(), MethodSessionSnapshot, nil, nil)
+	if err == nil {
+		t.Fatal("Call succeeded with no response")
+	}
+
+	if !strings.Contains(err.Error(), "read "+MethodSessionSnapshot+" response") {
+		t.Errorf("error %q does not say the response was missing", err)
+	}
+}
+
+func TestCallReportsWhatItCouldNotDecode(t *testing.T) {
+	// The two decodes fail separately: a frame that is not JSON, and a result
+	// that is JSON of the wrong shape. Each names the method it was for.
+	for name, reply := range map[string]string{
+		"frame":  `not json at all`,
+		"result": `{"id":"x","result":"a string where an object was expected"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := newTestServer(t, func(incoming) string { return reply })
+
+			var got struct {
+				Version string `json:"version"`
+			}
+
+			err := srv.client().Call(context.Background(), MethodSessionSnapshot, nil, &got)
+			if err == nil {
+				t.Fatal("Call succeeded on a response it could not decode")
+			}
+
+			if !strings.Contains(err.Error(), "decode "+MethodSessionSnapshot) {
+				t.Errorf("error %q does not name the decode that failed", err)
+			}
+		})
 	}
 }
