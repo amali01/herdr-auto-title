@@ -336,7 +336,7 @@ const humanOrigin = "human"
 // only once.
 func (t *transcript) absorb(lines string) {
 	for line := range strings.SplitSeq(lines, "\n") {
-		if line == "" {
+		if !t.canName(line) {
 			continue
 		}
 
@@ -352,6 +352,21 @@ func (t *transcript) absorb(lines string) {
 			t.topic.Opening = opening(read.Message.Content)
 		}
 	}
+}
+
+// canName reports whether a line is worth decoding: one that can carry a title,
+// or a user turn while the opening is still unknown. Most lines are tool output
+// of tens of kilobytes that names nothing, and this is cheaper than parsing it.
+func (t *transcript) canName(line string) bool {
+	if line == "" {
+		return false
+	}
+
+	if strings.Contains(line, `"ai-title"`) {
+		return true
+	}
+
+	return t.topic.Opening == "" && strings.Contains(line, `"user"`)
 }
 
 // commandPattern matches the marker Claude Code wraps a slash command in.
