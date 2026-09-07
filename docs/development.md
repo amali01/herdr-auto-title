@@ -6,7 +6,7 @@ synthetic session would not have agents running, directories changing or panes
 churning. The cost is that **your own tab names change while you work on it** —
 that is the plugin doing its job, not a problem to fix.
 
-Everything below assumes `make`, Go 1.24+ and a shell running inside a Herdr
+Everything below assumes `make`, Go 1.27+ and a shell running inside a Herdr
 pane (which is what exports `HERDR_SOCKET_PATH`).
 
 Run `make` on its own to list every target. On Windows, Git Bash ships neither

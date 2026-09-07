@@ -45,8 +45,7 @@ const (
 // ErrorCode returns the Herdr error code carried by err, or "" if err is not a
 // Herdr API error.
 func ErrorCode(err error) string {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.Code
 	}
 

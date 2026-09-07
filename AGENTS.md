@@ -117,9 +117,9 @@ polls is shared, two tests still run the loop in a goroutine of its own, and a
 future reset action will touch that state from outside the loop.
 
 The linter lives in `tools/go.mod`, a module of its own, so its dependency tree
-stays out of the plugin's: the main module keeps two dependencies and still
-builds on Go 1.24, which is what Herdr needs at install time. `errcheck` is off
-— the places that swallow an error say why they do.
+stays out of the plugin's: the main module keeps two dependencies and builds
+on Go 1.27, the floor the README asks of a machine Herdr installs it on.
+`errcheck` is off — the places that swallow an error say why they do.
 
 ## Herdr socket API — the traps
 

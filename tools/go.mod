@@ -1,9 +1,9 @@
 // Tooling only. This module exists so the linter's dependency tree stays out
-// of the plugin's: the main module keeps two dependencies and builds on Go 1.24,
-// which is what Herdr needs at install time.
+// of the plugin's: the main module keeps two dependencies and builds on Go 1.27,
+// the floor the README asks of a machine Herdr installs it on.
 module github.com/kryptamine/herdr-auto-title/tools
 
-go 1.26.0
+go 1.27.0
 
 tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 

@@ -46,7 +46,7 @@ linters:
     depguard:
       rules:
         everywhere:
-          # Herdr needs Go 1.24 and builds the plugin at install time, so a
+          # Herdr builds the plugin at install time on whatever Go the user has, so a
           # third-party import has to be a decision rather than an accident.
           list-mode: strict
           allow:

@@ -133,17 +133,14 @@ func TestChangesAreSafeUnderConcurrentUse(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			for n := range 200 {
 				c.Observe([]herdr.PaneInfo{pane("wE:p1", uint64(n))})
 				c.ChangedAt("wE:p1")
 				c.Ran("wE:p1", []herdr.PaneProcessInfoProcess{{Name: "nvim"}})
 				c.Processes("wE:p1")
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
