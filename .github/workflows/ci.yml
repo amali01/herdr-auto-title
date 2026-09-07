@@ -48,6 +48,14 @@ jobs:
         # linter because the formatters are configured in .golangci.yml too.
         run: go tool -modfile=tools/go.mod golangci-lint fmt --diff ./...
       - run: make lint
+      - name: Module tidiness
+        # A stray requirement or a missing one is a build that works here and
+        # fails on the machine Herdr installs the plugin on.
+        run: go mod tidy -diff
+      - name: Tools module tidiness
+        run: go mod tidy -diff
+        working-directory: tools
+      - run: make vuln
 
   macos:
     name: macOS

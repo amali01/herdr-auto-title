@@ -25,6 +25,10 @@ vet: ## Static checks
 lint: ## golangci-lint, pinned in tools/go.mod
 	@go tool -modfile=tools/go.mod golangci-lint run ./...
 
+.PHONY: vuln
+vuln: ## Known vulnerabilities the code reaches, against the Go vulnerability database
+	@go tool -modfile=tools/go.mod govulncheck ./...
+
 .PHONY: test
 test: ## Tests with the race detector
 	@go test -race ./...

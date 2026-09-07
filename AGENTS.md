@@ -102,6 +102,7 @@ to delete, is in [.claude/rules/comments.md](.claude/rules/comments.md).
 make            # list every target
 make check      # fmt + vet + lint + test   ← the gate before any commit
 make lint       # golangci-lint, pinned in tools/go.mod
+make vuln       # govulncheck, pinned beside it
 make test       # go test -race ./...
 make run        # build and run in the current Herdr session, DEBUG logging
 make dev        # the same, restarting on every source change
