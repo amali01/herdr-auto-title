@@ -146,7 +146,9 @@ Three costs are worth stating plainly:
   them yields nothing and the source declines — the failure mode is the tab
   named as it was before this existed, not a wrong name.
 - **The session id becomes part of a path.** It arrives over the socket, so it
-  is refused unless it is shaped like a UUID rather than cleaned.
+  is refused unless it is shaped like a UUID rather than cleaned, and the file
+  it names is opened through an `os.Root` on Claude Code's projects directory,
+  so a link planted there cannot lead the read anywhere else.
 
 ### Foreground process
 

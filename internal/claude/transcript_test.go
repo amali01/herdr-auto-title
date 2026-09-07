@@ -277,6 +277,39 @@ func TestASessionFiledUnderAnotherDirectoryIsStillFound(t *testing.T) {
 	}
 }
 
+func TestATranscriptOutsideTheProjectsDirectoryIsNotRead(t *testing.T) {
+	// The session id arrives over the socket, so the file it names is read
+	// through the projects directory alone: a link there leading out of it is
+	// refused, whether the slug or the scan finds it.
+	p := newProject(t)
+
+	outside := filepath.Join(t.TempDir(), "elsewhere.jsonl")
+	if err := os.WriteFile(
+		outside,
+		[]byte(joined([]string{aiTitle("leaked")})),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(p.path()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(outside, p.path()); err != nil {
+		t.Fatal(err)
+	}
+
+	reader := NewReader()
+	if got := reader.Topic(session, started); got.Text() != "" {
+		t.Errorf("topic = %+v, want the link out of the directory refused by the slug", got)
+	}
+
+	if got := reader.Topic(session, "/somewhere/else"); got.Text() != "" {
+		t.Errorf("topic = %+v, want the link out of the directory refused by the scan", got)
+	}
+}
+
 func TestAnIdThatIsNotASessionIsRefused(t *testing.T) {
 	// The id arrives over the socket and becomes part of a path.
 	newProject(t)

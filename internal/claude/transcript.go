@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -62,9 +63,9 @@ type Reader struct {
 	now      func() time.Time
 }
 
-// transcript is one session's file and what has been read out of it. A path
-// that is still empty is a session whose transcript has been looked for and not
-// found, and searchedAt is when that search last ran.
+// transcript is one session's file and what has been read out of it. The path
+// is relative to the projects directory; one still empty is a session whose
+// transcript was looked for and not found, and searchedAt is when.
 type transcript struct {
 	path       string
 	offset     int64
@@ -141,6 +142,12 @@ func (r *Reader) find(session *transcript, sessionID, dir string) bool {
 	return true
 }
 
+// projects opens Claude Code's projects directory as a root, so that nothing
+// read under it can lead outside it — a link among the transcripts included.
+func (r *Reader) projects() (*os.Root, error) {
+	return os.OpenRoot(filepath.Join(r.root, "projects"))
+}
+
 // Retain forgets every session but these, so a pane that closed takes its
 // transcript with it.
 func (r *Reader) Retain(sessionIDs []string) {
@@ -165,23 +172,28 @@ func isSessionID(value string) bool {
 	return sessionIDPattern.MatchString(value)
 }
 
-// locate finds the transcript. Claude Code files a session under the directory
-// it was started in, which is usually the pane's, so that is tried before the
-// scan across every project.
+// locate finds the transcript under the projects root. Claude Code files a
+// session under the directory it was started in, which is usually the pane's,
+// so that is tried before the scan across every project.
 func (r *Reader) locate(sessionID, dir string) (string, bool) {
+	projects, err := r.projects()
+	if err != nil {
+		return "", false
+	}
+	defer projects.Close() // a directory opened for reading has nothing to report on close
+
 	name := sessionID + ".jsonl"
-	projects := filepath.Join(r.root, "projects")
 
 	if dir != "" {
-		candidate := filepath.Join(projects, slugOf(dir), name)
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
+		candidate := filepath.Join(slugOf(dir), name)
+		if info, err := projects.Stat(candidate); err == nil && info.Mode().IsRegular() {
 			return candidate, true
 		}
 	}
 
 	// A pane that has changed directory since the session started files it
 	// elsewhere, and only the whole projects directory says where.
-	matches, err := filepath.Glob(filepath.Join(projects, "*", name))
+	matches, err := fs.Glob(projects.FS(), "*/"+name)
 	if err != nil || len(matches) == 0 {
 		return "", false
 	}
@@ -211,7 +223,15 @@ func slugOf(dir string) string {
 // topic from it. A transcript only grows, so one that is shorter than what has
 // been read out of it is no longer the file that was read.
 func (r *Reader) readInto(session *transcript) {
-	info, err := os.Stat(session.path)
+	projects, err := r.projects()
+	if err != nil {
+		session.path, session.offset = "", 0
+
+		return
+	}
+	defer projects.Close() // a directory opened for reading has nothing to report on close
+
+	info, err := projects.Stat(session.path)
 	if err != nil {
 		// Rotated, deleted, or refiled under another project. Letting the path
 		// go puts the session back behind locateRetry, and the offset goes
@@ -229,7 +249,7 @@ func (r *Reader) readInto(session *transcript) {
 		session.offset, session.topic = 0, Topic{}
 	}
 
-	file, err := os.Open(session.path)
+	file, err := projects.Open(session.path)
 	if err != nil {
 		return
 	}
