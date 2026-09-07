@@ -169,7 +169,7 @@ evening goes into it — see [../CONTRIBUTING.md](../CONTRIBUTING.md).
 | Line | Meaning |
 |------|---------|
 | `starting auto title` | the poll interval and length limit actually in force |
-| `tab renamed` | the only line that means Herdr was asked to do something |
+| `tab renamed` | the only line that means Herdr was asked to do something; the old and new names appear only at DEBUG, since they can carry what was said to an agent |
 | `poll failed` | a snapshot did not come back; the next tick retries, and a run of these is logged on a backoff rather than once per poll |
 | `the session is answering again` | polls are working after a run of failures, and how many were missed |
 | `rename failed` | something went wrong that is worth your attention |

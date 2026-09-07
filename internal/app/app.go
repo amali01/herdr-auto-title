@@ -317,13 +317,15 @@ func (a *App) apply(
 	// Recorded before the log line so the next poll cannot read this rename as
 	// the user's.
 	claims.Applied(seen.ID, decision.Name)
-	a.log.Info(kind.noun+" renamed",
-		idKey, seen.ID,
-		"old", seen.Current,
-		"new", decision.Name,
-		"reason", decision.Reason,
-		"confidence", decision.Confidence,
-	)
+
+	attrs := []any{idKey, seen.ID, "reason", decision.Reason, "confidence", decision.Confidence}
+	// The names go into a log Herdr keeps, and with transcripts read they carry
+	// what the user said to their agent, so they are logged only when asked for.
+	if a.log.Enabled(ctx, slog.LevelDebug) {
+		attrs = append(attrs, "old", seen.Current, "new", decision.Name)
+	}
+
+	a.log.Info(kind.noun+" renamed", attrs...)
 }
 
 // labelsIn indexes the session's tabs by id for the manual-name bookkeeping,
