@@ -277,6 +277,36 @@ func TestASessionFiledUnderAnotherDirectoryIsStillFound(t *testing.T) {
 	}
 }
 
+func TestASessionFiledTwiceIsReadFromTheNewerCopy(t *testing.T) {
+	// A session resumed from another directory leaves a transcript under both,
+	// and only the one still being written to says what it is about now. The
+	// scan lists them alphabetically, which here puts the stale one first.
+	p := newProject(t)
+	p.write(aiTitle("What it is about now"))
+
+	stale := filepath.Join(p.root, "projects", "-a-first-directory", session+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(stale), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(
+		stale,
+		[]byte(joined([]string{aiTitle("What it started as")})),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	earlier := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(stale, earlier, earlier); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := NewReader().Topic(session, "/somewhere/else"); got.Text() != "What it is about now" {
+		t.Errorf("topic = %+v, want the transcript written last", got)
+	}
+}
+
 func TestATranscriptOutsideTheProjectsDirectoryIsNotRead(t *testing.T) {
 	// The session id arrives over the socket, so the file it names is read
 	// through the projects directory alone: a link there leading out of it is

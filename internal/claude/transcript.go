@@ -194,11 +194,35 @@ func (r *Reader) locate(sessionID, dir string) (string, bool) {
 	// A pane that has changed directory since the session started files it
 	// elsewhere, and only the whole projects directory says where.
 	matches, err := fs.Glob(projects.FS(), "*/"+name)
-	if err != nil || len(matches) == 0 {
+	if err != nil {
 		return "", false
 	}
 
-	return matches[0], true
+	return newest(projects.FS(), matches)
+}
+
+// newest picks the most recently written of several files. A session resumed
+// from another directory is filed there too, and the one still being appended
+// to is the one that says what it is about now.
+func newest(files fs.FS, paths []string) (string, bool) {
+	var (
+		path  string
+		when  time.Time
+		found bool
+	)
+
+	for _, candidate := range paths {
+		info, err := fs.Stat(files, candidate)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+
+		if !found || info.ModTime().After(when) {
+			path, when, found = candidate, info.ModTime(), true
+		}
+	}
+
+	return path, found
 }
 
 // slugOf is how Claude Code names a project directory: every character that is
