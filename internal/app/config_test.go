@@ -327,7 +327,7 @@ func TestAMissingConfigFileIsSilent(t *testing.T) {
 }
 
 func TestABrokenConfigFileCostsTheWholeFile(t *testing.T) {
-	// godotenv parses the file or nothing, so a good line next to a bad one is
+	// The file is parsed or nothing is, so a good line next to a bad one is
 	// lost with it. The warning is all the user gets.
 	isolate(t)
 	writeConfig(t, "HERDR_AUTO_TITLE_POLL_MS=800\nHERDR_AUTO_TITLE_MAX_LENGTH=\"32\n")
@@ -351,8 +351,8 @@ func TestABrokenConfigFileCostsTheWholeFile(t *testing.T) {
 }
 
 func TestAKeyOfSomeoneElsesIsIgnored(t *testing.T) {
-	// godotenv puts every key in the file into the environment; only the ones
-	// Auto Title reads mean anything to it.
+	// Every key in the file goes into the environment; only the ones Auto Title
+	// reads mean anything to it.
 	isolate(t)
 	writeConfig(t, "HERDR_AUTO_TITLE_POL_MS=800\nSOMETHING_ELSE=1\n")
 
@@ -363,6 +363,44 @@ func TestAKeyOfSomeoneElsesIsIgnored(t *testing.T) {
 
 	if cfg.Poll != DefaultPoll {
 		t.Errorf("poll = %s, want the default %s", cfg.Poll, DefaultPoll)
+	}
+}
+
+func TestTheFileFormatIsWhatAShellWouldWrite(t *testing.T) {
+	// A file pasted from a shell profile carries export, quotes and a trailing
+	// comment; each is accepted, and nothing inside the quotes is interpreted.
+	values, err := parseEnvFile(`
+# a comment
+export HERDR_AUTO_TITLE_POLL_MS=800 # and another
+HERDR_AUTO_TITLE_MANUAL_FILE="/tmp/my names.json" # kept whole
+HERDR_AUTO_TITLE_DEBUG='$HOME'
+EMPTY=
+`)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	want := map[string]string{
+		"HERDR_AUTO_TITLE_POLL_MS":     "800",
+		"HERDR_AUTO_TITLE_MANUAL_FILE": "/tmp/my names.json",
+		"HERDR_AUTO_TITLE_DEBUG":       "$HOME",
+		"EMPTY":                        "",
+	}
+
+	for key, value := range want {
+		if values[key] != value {
+			t.Errorf("%s = %q, want %q", key, values[key], value)
+		}
+	}
+
+	if len(values) != len(want) {
+		t.Errorf("parsed %d values, want %d: %v", len(values), len(want), values)
+	}
+
+	for _, bad := range []string{"just words\n", "=800\n", `X="open` + "\n", `X="a" b` + "\n"} {
+		if _, err := parseEnvFile(bad); err == nil {
+			t.Errorf("parsed %q, want it rejected", bad)
+		}
 	}
 }
 

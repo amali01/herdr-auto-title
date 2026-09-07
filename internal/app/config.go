@@ -7,9 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/joho/godotenv"
 
 	"github.com/kryptamine/herdr-auto-title/internal/resolver"
 	"github.com/kryptamine/herdr-auto-title/internal/state"
@@ -120,14 +119,97 @@ func readConfigFile() string {
 	if path == "" {
 		return ""
 	}
-	// Load leaves a variable already in the environment alone, which is what
-	// makes the environment win over the file.
-	err := godotenv.Load(path)
-	if err == nil || errors.Is(err, fs.ErrNotExist) {
+
+	raw, err := os.ReadFile(path) //nolint:gosec // the path is the plugin's own configuration file
+	if errors.Is(err, fs.ErrNotExist) {
 		return ""
 	}
-	// One bad line costs the whole file: godotenv parses it or nothing.
-	return fmt.Sprintf("%s %s, so nothing in it is used", path, err)
+
+	if err != nil {
+		return fmt.Sprintf("%s cannot be read (%v), so nothing in it is used", path, err)
+	}
+
+	values, err := parseEnvFile(string(raw))
+	if err != nil {
+		return fmt.Sprintf("%s %s, so nothing in it is used", path, err)
+	}
+
+	// A variable already in the environment is left alone, which is what makes
+	// the environment win over the file.
+	for key, value := range values {
+		if _, set := os.LookupEnv(key); !set {
+			_ = os.Setenv(key, value) // fails only on a key no environment could hold
+		}
+	}
+
+	return ""
+}
+
+// The reasons a configuration file is rejected. Each reads as the middle of the
+// warning it lands in: `.../config.env has no KEY=VALUE on line 3, so ...`.
+var (
+	errNotAssignment = errors.New("has no KEY=VALUE")
+	errOpenQuote     = errors.New("has an unclosed quote")
+)
+
+// parseEnvFile reads KEY=VALUE lines. Blank lines and # comments are skipped, an
+// `export` prefix is allowed and a value may be quoted. One bad line rejects the
+// whole file, so a typo is reported rather than half-applied.
+func parseEnvFile(raw string) (map[string]string, error) {
+	values := make(map[string]string)
+
+	number := 0
+	for line := range strings.SplitSeq(raw, "\n") {
+		number++
+
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, found := strings.Cut(strings.TrimPrefix(line, "export "), "=")
+
+		key = strings.TrimSpace(key)
+		if !found || key == "" || strings.ContainsAny(key, " \t") {
+			return nil, fmt.Errorf("%w on line %d", errNotAssignment, number)
+		}
+
+		value, err := unquote(strings.TrimSpace(value))
+		if err != nil {
+			return nil, fmt.Errorf("%w on line %d", err, number)
+		}
+
+		values[key] = value
+	}
+
+	return values, nil
+}
+
+// unquote strips the quotes around a value, and cuts an unquoted one at the
+// comment that may follow it. Nothing inside quotes is interpreted: a `\n` and
+// a `$HOME` stay as written, because a tab title is never worth a shell.
+func unquote(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	quote := value[0]
+	if quote != '"' && quote != '\'' {
+		value, _, _ = strings.Cut(value, " #")
+		return strings.TrimSpace(value), nil
+	}
+
+	end := strings.IndexByte(value[1:], quote)
+	if end < 0 {
+		return "", errOpenQuote
+	}
+
+	// Only a comment may follow the closing quote.
+	if rest := strings.TrimSpace(value[end+2:]); rest != "" && !strings.HasPrefix(rest, "#") {
+		return "", errOpenQuote
+	}
+
+	return value[1 : end+1], nil
 }
 
 // configPath is where the configuration file lives, or empty when the user has

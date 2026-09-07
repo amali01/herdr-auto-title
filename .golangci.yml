@@ -53,7 +53,6 @@ linters:
             - $gostd
             - github.com/kryptamine/herdr-auto-title
             - github.com/rivo/uniseg
-            - github.com/joho/godotenv
           deny:
             - pkg: os/exec
               desc: renames go over the socket API, never through a shell

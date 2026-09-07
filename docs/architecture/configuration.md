@@ -1,7 +1,7 @@
 ---
 type: doc
 title: 'Configuration'
-description: 'Why Auto Title reads a configuration file at all, where that file lives and why it is not the directory Herdr offers, why the environment beats the file, why the parsing is a library rather than ten lines of our own, and why nothing is reread while the plugin runs.'
+description: 'Why Auto Title reads a configuration file at all, where that file lives and why it is not the directory Herdr offers, why the environment beats the file, what the file format is and why it is forty lines of our own rather than a library, and why nothing is reread while the plugin runs.'
 tags: [architecture]
 created: 2026-08-26
 generated: { by: claude-code/opus-5, at: 2026-08-26T14:14:17+03:00 }
@@ -59,8 +59,8 @@ otherwise.
 ## Why the environment still wins
 
 A variable already in the environment is left as it is; the file only fills what
-the environment does not say. `godotenv.Load` works that way by contract, so
-this costs no code.
+the environment does not say. `readConfigFile` checks each key with `LookupEnv`
+before setting it, which is the whole of the rule.
 
 The file is where a setting lives permanently; the environment is how one run
 overrides it. That is what `make run` does — `HERDR_AUTO_TITLE_DEBUG=1` in front
@@ -68,27 +68,34 @@ of the binary — and what anyone debugging does without thinking about it. Had
 the file won, a debug flag on the command line would have been silently ignored,
 which is the worst behaviour available.
 
-## Why a library
+## The format, and why it is not a library
 
-`github.com/joho/godotenv` v1.5.1: about 500 lines, MIT, and **no transitive
-dependencies** — it is the plugin's second dependency and adds nothing below
-itself. Auto Title's own needs are narrower than what it does, so the syntax the
-file accepts is the library's, not a specification of ours:
+The file is what a shell profile would hold, read by `parseEnvFile` in about
+forty lines:
 
 - `KEY=value`, `#` comments, blank lines, and `export KEY=value`.
-- Surrounding quotes are stripped, and `\n` inside double quotes is a newline.
-- `${VAR}` and `$VAR` are expanded **from the file itself, never from the
-  environment** (`expandVariables` is handed the map parsed from that file).
-  `MANUAL_FILE=${HOME}/names.json` therefore yields `/names.json`. This is the
-  one trap in the format, so the README warns about it.
-- **A single bad line costs the whole file.** The parser returns an error and no
-  values, so there is nothing to salvage line by line: Auto Title warns, naming
-  the file and what the parser objected to, and every setting keeps its default.
+- A value may be wrapped in single or double quotes, which are stripped. An
+  unquoted value ends at ` #`; a quoted one may be followed by a comment.
+- **Nothing inside a value is interpreted.** `\n` stays two characters and
+  `$HOME` stays five: the file names paths and numbers, and expanding anything
+  in it would be the first step towards a shell in a plugin that has none.
+- **A single bad line costs the whole file.** A line without `=`, or with a
+  quote that is never closed, is an error and no values: Auto Title warns,
+  naming the file and the line, and every setting keeps its default. There is
+  nothing to salvage line by line, because half a configuration is harder to
+  reason about than none.
 
-Not warning about a key that is not ours is deliberate: `godotenv` puts every
-pair it reads into the environment, and a key Auto Title does not read simply
-has no effect. Nothing checks names against a list, so a typo is silent — the
-cost of that is one line in the README table.
+It was a library once, `github.com/joho/godotenv`, which did all of this and
+more: `\n` escapes, and `${VAR}` expansion from the file itself rather than the
+environment, so `${HOME}/names.json` silently became `/names.json`. Its last
+release was in 2023, and every dependency is a module Herdr has to fetch on the
+user's machine at install time. The eight settings never needed the more, and
+the one trap in the format went with it.
+
+Not warning about a key that is not ours is deliberate: every pair in the file
+goes into the environment, and a key Auto Title does not read simply has no
+effect. Nothing checks names against a list, so a typo is silent — the cost of
+that is one line in the README table.
 
 ## Why naming panes is on by default, and still a setting
 
